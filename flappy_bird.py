@@ -185,8 +185,19 @@ def draw_window(win,bird, pipes, base, score):
     pygame.display.update()
 
 # Create a main function
-def main():
-    bird = Bird(230,350)
+def main(genomes, config): 
+    nets = []
+    ge = []
+    birds = []
+
+    for g in genomes:
+        net = neat.nn.FeedForwardNetwork(g, config)
+        nets.append(net)
+        birds.append(Bird(230, 350))
+        g.fitness = 0 
+        ge.append(g)
+
+    # bird = Bird(230,350)
     base = Base(730)
     pipes = [Pipe(600)]
 
@@ -205,28 +216,38 @@ def main():
         add_pipe = False
         rem = [] # A remove list that stores removed pipes
         for pipe in pipes:
-            # check for collision
-            if pipe.collide(bird) == True:
-                pass
+            for x, bird in enumerate(birds):
+                # check for collision
+                if pipe.collide(bird) == True:
+                    ge[x].fitness -= 1
+                    birds.pop(x)
+                    nets.pop(x)
+                    ge.pop(x)
+
+                if not pipe.passed and pipe.x < bird.x:
+                    pipe.passed = True
+                    add_pipe = True
             # If pipe is completly off the screen
             if pipe.x + pipe.PIPE_TOP.get_width() < 0:
                 rem.append(pipe)
-            
-            if not pipe.passed and pipe.x < bird.x:
-                pipe.passed = True
-                add_pipe = True
             pipe.move()
         
         if add_pipe:
             score+=1
+            # Increase the fitness
+            for g in ge:
+                g.fitness+=5
             pipes.append(Pipe(600)) # Add a new pipe in the pipes list
         
         for r in rem:
             pipes.remove(r)
 
-        # Check if the bird hit the ground
-        if bird.y + bird.img.get_height() >= 730:
-            pass
+        for x,bird in enumerate(birds):
+            # Check if the bird hit the ground
+            if bird.y + bird.img.get_height() >= 730:
+                birds.pop(x)
+                nets.pop(x)
+                ge.pop(x)
 
 
 
@@ -235,4 +256,24 @@ def main():
     quit()
 
 main()
-print("hello")
+def run(config_path):
+    # Load the configuration file
+    config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                                config_path)
+    p = neat.Population(config)
+
+    # Print stats on terminal
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+
+    winner = p.run(main,50)
+
+
+if __name__ == "__main__":
+    # Locating the configuration file
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir,"config-feedforward.txt")
+    # 
+    run(config_path)
